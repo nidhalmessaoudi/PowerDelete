@@ -1,24 +1,47 @@
 import { parse } from "https://deno.land/std@0.178.0/flags/mod.ts";
+import AppError from "./AppError.ts";
+import error_handler from "./error_handler.ts";
 
 import K from "./K.ts";
 
 const args = parse(Deno.args);
-const path = Deno.cwd();
+let path = Deno.cwd();
+
+if (args._.length && typeof args._[0] === "string") {
+  path = await Deno.realPath(args._[0]);
+}
 
 console.log(path);
 console.log(args);
 print_help();
 
-// if (args._.length && typeof args._[0] === "string") {
-//   const given_path = args._[0];
-//   const specified_path_info = await Deno.stat(given_path);
+try {
+  const specified_path_info = await Deno.stat(path);
 
-//   if (specified_path_info.isFile) {
-//     console.log("Deleting...");
-//     await Deno.remove(given_path);
-//     console.log(`Successfully deleted this file: ${given_path}`);
-//   }
-// }
+  if (specified_path_info.isFile) {
+    console.log("Deleting the file...");
+    await Deno.remove(path);
+    console.log(`Successfully deleted this file: ${path}`);
+  } else if (specified_path_info.isDirectory) {
+    const dir_content: string[] = [];
+    for await (const dir_entry of Deno.readDir(path)) {
+      dir_content.push(dir_entry.name);
+    }
+
+    if (!dir_content.length) {
+      console.log("Deleting the directory because it's empty...");
+      await Deno.remove(path);
+      console.log(`Successfully deleted this directory: ${path}`);
+      Deno.exit(0);
+    }
+
+    // const removable_content = dir_content.map((current_entry) => {
+    //     const current_entry_ext = current_entry.split(".");
+    // });
+  }
+} catch (err) {
+  error_handler(new AppError(err, path));
+}
 
 function print_help() {
   console.log(`PowerDelete ${K.VERSION}`);
