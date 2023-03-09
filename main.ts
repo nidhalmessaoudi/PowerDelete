@@ -1,46 +1,140 @@
 import { parse } from "https://deno.land/std@0.178.0/flags/mod.ts";
+
 import AppError from "./AppError.ts";
 import error_handler from "./error_handler.ts";
 
 import K from "./K.ts";
 
 const args = parse(Deno.args);
-let path = Deno.cwd();
 
-if (args._.length && typeof args._[0] === "string") {
-  path = await Deno.realPath(args._[0]);
+if (args["h"] || args["help"]) {
+  print_help();
+  Deno.exit(0);
 }
 
-console.log(path);
-console.log(args);
-print_help();
+let path = Deno.cwd();
+const slashType = path.includes("/") ? "/" : "\\";
 
 try {
+  if (args._.length && typeof args._[0] === "string") {
+    path = args._[0];
+    path = await Deno.realPath(args._[0]);
+  }
+
+  let deleteAll = false;
+
+  if (args["R"]) {
+    const argFlags = Object.keys(args);
+    argFlags.splice(argFlags.indexOf("_"), 1);
+    argFlags.splice(argFlags.indexOf("R"), 1);
+
+    if (!argFlags.length) {
+      deleteAll = true;
+    }
+  }
+
   const specified_path_info = await Deno.stat(path);
+  const dir_content: string[] = [];
 
   if (specified_path_info.isFile) {
-    console.log("Deleting the file...");
-    await Deno.remove(path);
-    console.log(`Successfully deleted this file: ${path}`);
+    deleteAll = true;
   } else if (specified_path_info.isDirectory) {
-    const dir_content: string[] = [];
     for await (const dir_entry of Deno.readDir(path)) {
       dir_content.push(dir_entry.name);
     }
 
     if (!dir_content.length) {
-      console.log("Deleting the directory because it's empty...");
-      await Deno.remove(path);
-      console.log(`Successfully deleted this directory: ${path}`);
-      Deno.exit(0);
+      deleteAll = true;
     }
-
-    // const removable_content = dir_content.map((current_entry) => {
-    //   const current_entry_ext = current_entry.split(".");
-    // });
   }
+
+  if (deleteAll) {
+    console.log("Deleting the specified path...");
+    await Deno.remove(path, { recursive: true });
+    console.log(`Successfully deleted ${path}`);
+    Deno.exit(0);
+  }
+
+  let nothingToDelete = true;
+
+  const removable_file_extensions: Set<string> = new Set();
+  const stayable_file_extensions: Set<string> = new Set();
+  const files_to_keep: Set<string> = new Set();
+  const files_to_remove: Set<string> = new Set();
+
+  const flags = [
+    ["i", removable_file_extensions],
+    ["include", removable_file_extensions],
+    ["e", stayable_file_extensions],
+    ["exclude", stayable_file_extensions],
+    ["keep", files_to_keep],
+    ["remove", files_to_remove],
+  ];
+
+  flags.forEach((flag) => {
+    const flag_key = args[flag[0] as string];
+
+    if (flag_key) {
+      const flag_set = flag[1] as Set<string>;
+      get_values(flag_key).forEach((val) => flag_set.add(val));
+    }
+  });
+
+  files_to_keep.forEach((entry) => {
+    if (files_to_remove.has(entry)) {
+      files_to_remove.delete(entry);
+    }
+  });
+
+  stayable_file_extensions.forEach((ext) => {
+    dir_content.forEach((entry) => {
+      if (entry.endsWith(ext)) {
+        files_to_keep.add(entry);
+      }
+    });
+  });
+
+  removable_file_extensions.forEach((ext) => {
+    dir_content.forEach((entry) => {
+      if (entry.endsWith(ext) && !files_to_keep.has(entry)) {
+        files_to_remove.add(entry);
+      }
+    });
+  });
+
+  for (const entry of files_to_remove) {
+    const entry_path = `${path}${
+      path.endsWith(slashType) ? "" : slashType
+    }${entry}`;
+
+    console.log(`Deleting ${entry_path}`);
+
+    await Deno.remove(entry_path, {
+      recursive: true,
+    });
+
+    console.log(`${entry} was deleted successfully.`);
+
+    if (nothingToDelete) {
+      nothingToDelete = false;
+    }
+  }
+
+  if (nothingToDelete) {
+    console.log(
+      "No entry was deleted! Please use the '--help' flag to see how you can customize the delete operation."
+    );
+  } else {
+    console.log("All the specified entries was successfully deleted!");
+  }
+
+  Deno.exit(0);
 } catch (err) {
   error_handler(new AppError(err, path));
+}
+
+function get_values(param: string): string[] {
+  return param.split(",");
 }
 
 function print_help() {
@@ -77,8 +171,4 @@ function print_help() {
       [--remove]            Comma-separated list of file or directory names
                             to be exclusively included in the deletion.
   `);
-}
-
-function get_extensions(param: string): string[] {
-  return param.split(",");
 }
