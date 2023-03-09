@@ -1,6 +1,9 @@
 {
   "tasks": {
     "dev": "deno run --watch main.ts",
-    "build": "deno compile --output pd --allow-read --allow-write main.ts"
+    "build:win": "deno compile --output pd --target x86_64-pc-windows-msvc --allow-read --allow-write main.ts",
+    "build:linux": "deno compile --output pd --target x86_64-unknown-linux-gnu --allow-read --allow-write main.ts",
+    "build:macx86": "deno compile --output pd --target x86_64-apple-darwin --allow-read --allow-write main.ts",
+    "build:macaarm": "deno compile --output pd --target aarch64-apple-darwin --allow-read --allow-write main.ts"
   }
 }
