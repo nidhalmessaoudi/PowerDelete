@@ -16,7 +16,7 @@ You can also add the executable folder to your PATH variable to be able to use t
 ```
 pd /my_directory --include png,pdf,jpeg --keep my_best_img.png
 ```
-This command will delete every file ending with `.png`, `.pdf`, or `.jpeg`, but will keep `my_best_img.png` file exclusively.
+This command will delete every file ending with `.png`, `.pdf`, or `.jpeg` in `my_directory/` folder, but will keep `my_best_img.png` file exclusively.
 ### Path
 Notes about the path:
 - The path is the pointer to the entry where delete operations will happen.
